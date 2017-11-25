@@ -222,7 +222,7 @@ class StatusColoring(Coloring):
     Coloring.__init__(self, config, 'status')
     self.project = self.printer('header', attr='bold')
     self.branch = self.printer('header', attr='bold')
-    self.nobranch = self.printer('nobranch', fg='red')
+    self.nobranch = self.printer('nobranch')
     self.important = self.printer('important', fg='red')
 
     self.added = self.printer('added', fg='green')
