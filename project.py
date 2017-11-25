@@ -1056,7 +1056,25 @@ class Project(object):
     di = self.work_git.DiffZ('diff-index', '-M', '--cached', HEAD)
     df = self.work_git.DiffZ('diff-files')
     do = self.work_git.LsOthers()
-    if not rb and not di and not df and not do and not self.CurrentBranch:
+
+    # get branch distance with revision
+    revid = self.GetRevisionId(self.bare_ref.all)
+    head = self.work_git.GetHead()
+    changes = self.work_git.rev_list('--topo-order',
+                                     '--left-right',
+                                     '%s...%s' % (head, revid))
+    ahead = sum(x[0] == '<' for x in changes)
+    behind = len(changes) - ahead
+    if ahead and behind:
+      distance = ' [behind %d, ahead %d]' % (behind, ahead)
+    elif ahead:
+      distance = ' [ahead %d]' % ahead
+    elif behind:
+      distance = ' [behind %d]' % behind
+    else:
+      distance = ''
+
+    if quiet and not rb and not di and not df and not do and not distance:
       return 'CLEAN'
 
     out = StatusColoring(self.config)
@@ -1064,16 +1082,19 @@ class Project(object):
       out.redirect(output_redir)
     out.project('project %-40s', self.relpath + '/ ')
 
-    if quiet:
-      out.nl()
-      return 'DIRTY'
-
     branch = self.CurrentBranch
     if branch is None:
       out.nobranch('(*** NO BRANCH ***)')
     else:
       out.branch('branch %s', branch)
+
+    if distance:
+      out.important(distance)
+
     out.nl()
+
+    if quiet:
+      return 'DIRTY'
 
     if rb:
       out.important('prior sync failed; rebase still in progress')
