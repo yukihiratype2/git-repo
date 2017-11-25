@@ -1372,7 +1372,7 @@ class Project(object):
                                 R_HEADS, dest_branch)
     cmd.append(ref_spec)
 
-    if GitCommand(self, cmd, bare=True).Wait() != 0:
+    if GitCommand(self, cmd).Wait() != 0:
       raise UploadError('Upload failed')
 
     msg = "pushed to %s for %s" % (branch.remote.review, dest_branch)
