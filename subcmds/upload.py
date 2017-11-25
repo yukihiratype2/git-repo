@@ -56,6 +56,7 @@ def _SplitEmails(values):
   return result
 
 class Upload(InteractiveCommand):
+  gerrit = True
   common = True
   helpSummary = "Upload changes for code review"
   helpUsage = """
@@ -210,9 +211,15 @@ Gerrit Code Review:  https://www.gerritcodereview.com/
       date = branch.date
       commit_list = branch.commits
 
-      destination = opt.dest_branch or project.dest_branch or project.revisionExpr
+      # TODO: The destination branch name is calculated twice in this file
+      #       and again in project.py.  This is not DRY.  Further, the
+      #       calculations are different.  The value calculated here is merely
+      #       used in a message.  The project.py value is actually used in a
+      #       git command and is therefore probably more reliable.
+      push_branch = None if self.gerrit else name
+      destination = opt.dest_branch or push_branch or project.dest_branch or project.revisionExpr
       print('Upload project %s/ to remote branch %s%s:' %
-            (project.relpath, destination, ' (draft)' if opt.draft else ''))
+            (project.relpath, destination, ' (draft)' if self.gerrit and opt.draft else ''))
       print('  branch %s (%2d commit%s, %s):' % (
                     name,
                     len(commit_list),
@@ -256,7 +263,13 @@ Gerrit Code Review:  https://www.gerritcodereview.com/
 
         if b:
           script.append('#')
-        destination = opt.dest_branch or project.dest_branch or project.revisionExpr
+        # TODO: The destination branch name is calculated twice in this file
+        #       and again in project.py.  This is not DRY.  Further, the
+        #       calculations are different.  The value calculated here is merely
+        #       used in a message.  The project.py value is actually used in a
+        #       git command and is therefore probably more reliable.
+        push_branch = None if self.gerrit else name
+        destination = opt.dest_branch or push_branch or project.dest_branch or project.revisionExpr
         script.append('#  branch %s (%2d commit%s, %s) to remote branch %s:' % (
                       name,
                       len(commit_list),
@@ -377,7 +390,7 @@ Gerrit Code Review:  https://www.gerritcodereview.com/
               continue
 
         # Check if topic branches should be sent to the server during upload
-        if opt.auto_topic is not True:
+        if self.gerrit and opt.auto_topic is not True:
           key = 'review.%s.uploadtopic' % branch.project.remote.review
           opt.auto_topic = branch.project.config.GetBoolean(key)
 
@@ -396,15 +409,19 @@ Gerrit Code Review:  https://www.gerritcodereview.com/
             branch.uploaded = False
             continue
 
-        branch.UploadForReview(people,
-                               auto_topic=opt.auto_topic,
-                               draft=opt.draft,
-                               private=opt.private,
-                               notify=None if opt.notify else 'NONE',
-                               wip=opt.wip,
-                               dest_branch=destination,
-                               validate_certs=opt.validate_certs,
-                               push_options=opt.push_options)
+        if self.gerrit:
+          branch.UploadForReview(people,
+                                auto_topic=opt.auto_topic,
+                                draft=opt.draft,
+                                private=opt.private,
+                                notify=None if opt.notify else 'NONE',
+                                wip=opt.wip,
+                                dest_branch=destination,
+                                validate_certs=opt.validate_certs,
+                                push_options=opt.push_options)
+        else:
+          branch.Push(dest_branch=destination,
+                      validate_certs=opt.validate_certs)
 
         branch.uploaded = True
       except UploadError as e:
@@ -472,7 +489,8 @@ Gerrit Code Review:  https://www.gerritcodereview.com/
           avail = [up_branch]
         else:
           avail = None
-          print('ERROR: Current branch (%s) not uploadable. '
+          if self.gerrit:
+            print('ERROR: Current branch (%s) not uploadable. '
                 'You may be able to type '
                 '"git branch --set-upstream-to m/master" to fix '
                 'your branch.' % str(cbr),
@@ -500,9 +518,9 @@ Gerrit Code Review:  https://www.gerritcodereview.com/
         print("ERROR: %s" % str(e), file=sys.stderr)
         return
 
-    if opt.reviewers:
+    if self.gerrit and opt.reviewers:
       reviewers = _SplitEmails(opt.reviewers)
-    if opt.cc:
+    if self.gerrit and opt.cc:
       cc = _SplitEmails(opt.cc)
     people = (reviewers, cc)
 

@@ -195,6 +195,12 @@ class ReviewableBranch(object):
                                  validate_certs=validate_certs,
                                  push_options=push_options)
 
+  def Push(self, dest_branch=None,
+                 validate_certs=True):
+    self.project.Push(self.name,
+                      dest_branch=dest_branch,
+                      validate_certs=validate_certs)
+
   def GetPublishedRefs(self):
     refs = {}
     output = self.project.bare_git.ls_remote(
@@ -1326,6 +1332,53 @@ class Project(object):
                             R_HEADS + branch.name,
                             message=msg)
 
+  def Push(self, branch=None,
+                 dest_branch=None,
+                 validate_certs=True):
+    """Pushes the named branch to origin.
+    """
+    if branch is None:
+      branch = self.CurrentBranch
+    if branch is None:
+      raise GitError('not currently on a branch')
+
+    branch = self.GetBranch(branch)
+    if not branch.LocalMerge:
+      raise GitError('branch %s does not track a remote' % branch.name)
+
+    if dest_branch is None:
+      dest_branch = self.dest_branch
+    if dest_branch is None:
+      dest_branch = branch.name
+    if not dest_branch.startswith(R_HEADS):
+      dest_branch = R_HEADS + dest_branch
+
+    if not branch.remote.projectname:
+      branch.remote.projectname = self.name
+      branch.remote.Save()
+
+    cmd = ['push']
+
+    url = branch.remote.pushUrl
+    if url is None:
+      url = branch.remote.url
+    if url is None:
+      raise UploadError("no remote 'url' or 'pushurl' is defined in the git configuration")
+    cmd.append(url)
+
+    if dest_branch.startswith(R_HEADS):
+      dest_branch = dest_branch[len(R_HEADS):]
+    ref_spec = '%s%s:%s%s' % (R_HEADS, branch.name,
+                                R_HEADS, dest_branch)
+    cmd.append(ref_spec)
+
+    if GitCommand(self, cmd, bare=True).Wait() != 0:
+      raise UploadError('Upload failed')
+
+    msg = "pushed to %s for %s" % (branch.remote.review, dest_branch)
+    self.bare_git.UpdateRef(R_PUB + branch.name,
+                            R_HEADS + branch.name,
+                            message=msg)
 
 # Sync ##
 
