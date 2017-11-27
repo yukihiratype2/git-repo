@@ -1701,9 +1701,10 @@ class Project(object):
       # Upstream rebased.  Not everything in HEAD
       # was created by this user.
       #
-      syncbuf.info(self,
-                   "discarding %d commits removed from upstream",
-                   len(local_changes) - cnt_mine)
+      syncbuf.fail(self,
+                   "discarding %d commits removed from upstream" %
+                   (len(local_changes) - cnt_mine))
+      return
 
     branch.remote = self.GetRemote(self.remote.name)
     if not ID_RE.match(self.revisionExpr):
