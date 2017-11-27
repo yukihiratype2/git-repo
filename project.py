@@ -1359,12 +1359,13 @@ class Project(object):
 
     cmd = ['push']
 
-    url = branch.remote.pushUrl
-    if url is None:
-      url = branch.remote.url
-    if url is None:
-      raise UploadError("no remote 'url' or 'pushurl' is defined in the git configuration")
-    cmd.append(url)
+    #url = branch.remote.pushUrl
+    #if url is None:
+    #  url = branch.remote.url
+    #if url is None:
+    #  raise UploadError("no remote 'url' or 'pushurl' is defined in the git configuration")
+    #cmd.append(url)
+    cmd.append(branch.remote.name)
 
     if dest_branch.startswith(R_HEADS):
       dest_branch = dest_branch[len(R_HEADS):]
