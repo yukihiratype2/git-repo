@@ -563,11 +563,14 @@ later is required to fix a server side protocol bug.
       sys.exit(1)
 
   def _GCProjects(self, projects):
+    gc_projects = {}
     gc_gitdirs = {}
     for project in projects:
       if len(project.manifest.GetProjectsWithName(project.name)) > 1:
-        print('Shared project %s found, disabling pruning.' % project.name)
+        if project.name not in gc_projects:
+          print('Shared project %s found, disabling pruning.' % project.name)
         project.bare_git.config('--replace-all', 'gc.pruneExpire', 'never')
+      gc_projects[project.name] = 1
       gc_gitdirs[project.gitdir] = project.bare_git
 
     has_dash_c = git_require((1, 7, 2))
