@@ -19,7 +19,7 @@ import os
 import sys
 
 from command import Command
-from git_config import IsImmutable
+from git_config import IsImmutable, IsId
 from git_command import git
 import gitc_utils
 from progress import Progress
@@ -106,7 +106,13 @@ revision specified in the manifest.
           branch_merge = project.dest_branch
         else:
           branch_merge = self.manifest.default.revisionExpr
-
+      head = project.work_git.GetHead()
+      if IsId(head):
+        _, ahead, _ = project.GetHeadDistance()
+        if ahead > 0:
+          print("error: %s/: Detached HEAD is %d commits ahead of '%s'" % (project.relpath, ahead, project.revisionExpr), file=sys.stderr)
+          err.append(project)
+          continue
       if not project.StartBranch(nb, branch_merge=branch_merge):
         err.append(project)
     pm.end()

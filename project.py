@@ -1038,6 +1038,18 @@ class Project(object):
     else:
       return False
 
+  def GetHeadDistance(self):
+    """Returns distance in form of tuple (all, ahead, behind) between HEAD and Revision.
+    """
+    revid = self.GetRevisionId(self.bare_ref.all)
+    head = self.work_git.GetHead()
+    changes = self.work_git.rev_list('--topo-order',
+                                     '--left-right',
+                                     '%s...%s' % (head, revid))
+    ahead = sum(x[0] == '<' for x in changes)
+    behind = len(changes) - ahead
+    return (len(changes), ahead, behind)
+
   def PrintWorkTreeStatus(self, output_redir=None, quiet=False):
     """Prints the status of the repository to stdout.
 
@@ -1063,14 +1075,7 @@ class Project(object):
     df = self.work_git.DiffZ('diff-files')
     do = self.work_git.LsOthers()
 
-    # get branch distance with revision
-    revid = self.GetRevisionId(self.bare_ref.all)
-    head = self.work_git.GetHead()
-    changes = self.work_git.rev_list('--topo-order',
-                                     '--left-right',
-                                     '%s...%s' % (head, revid))
-    ahead = sum(x[0] == '<' for x in changes)
-    behind = len(changes) - ahead
+    _, ahead, behind = self.GetHeadDistance()
     if ahead and behind:
       distance = ' [behind %d, ahead %d]' % (behind, ahead)
     elif ahead:
