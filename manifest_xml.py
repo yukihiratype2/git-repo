@@ -40,6 +40,7 @@ from error import ManifestParseError, ManifestInvalidRevisionError
 MANIFEST_FILE_NAME = 'manifest.xml'
 LOCAL_MANIFEST_NAME = 'local_manifest.xml'
 LOCAL_MANIFESTS_DIR_NAME = 'local_manifests'
+ALT_MANIFEST_DIR_NAME = "alt_manifests"
 
 # urljoin gets confused if the scheme is not known.
 urllib.parse.uses_relative.extend([
@@ -133,6 +134,7 @@ class XmlManifest(object):
     self.repodir = os.path.abspath(repodir)
     self.topdir = os.path.dirname(self.repodir)
     self.manifestFile = os.path.join(self.repodir, MANIFEST_FILE_NAME)
+    self.altManifestDir = os.path.join(self.repodir, ALT_MANIFEST_DIR_NAME)
     self.globalConfig = GitConfig.ForUser()
     self.localManifestWarning = False
     self.isGitcClient = False
@@ -161,7 +163,10 @@ class XmlManifest(object):
 
     # Look for manifests by name from the manifests repo.
     if path is None:
-      path = os.path.join(self.manifestProject.worktree, name)
+      if name[0] == ':':
+        path = os.path.join(self.altManifestDir, name[1:])
+      else:
+        path = os.path.join(self.manifestProject.worktree, name)
       if not os.path.isfile(path):
         raise ManifestParseError('manifest %s not found' % name)
 
