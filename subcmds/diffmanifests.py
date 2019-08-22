@@ -17,6 +17,7 @@
 import os.path
 from color import Coloring
 from command import PagedCommand
+from git_config import IsId
 from manifest_xml import (XmlManifest, MANIFEST_FILE_NAME)
 
 class _Coloring(Coloring):
@@ -73,6 +74,9 @@ synced and their revisions won't be found.
     p.add_option('--no-local-manifests',
                  dest='load_local_manifests', action='store_false', default=True,
                  help='does not load local manifests.')
+    p.add_option('--markdown',
+                 dest='markdown', action='store_true',
+                 help='Display output in markdown format.')
     p.add_option('--no-color',
                  dest='color', action='store_false', default=True,
                  help='does not display the diff in color.')
@@ -80,6 +84,17 @@ synced and their revisions won't be found.
                  dest='pretty_format', action='store',
                  metavar='<FORMAT>',
                  help='print the log using a custom git pretty format string')
+
+  def _quote_rev(self, c):
+    if IsId(c):
+      c = c[:12]
+    return self._quote(c)
+
+  def _quote(self, s):
+    if self.output_markdown:
+      return '`%s`' % s
+    else:
+      return s
 
   def _printRawDiff(self, diff):
     for project in diff['added']:
@@ -102,36 +117,43 @@ synced and their revisions won't be found.
       self.out.nl()
 
   def _printDiff(self, diff, color=True, pretty_format=None):
+    if self.output_markdown:
+      title_prefix = '### '
+      list_prefix = '* '
+    else:
+      title_prefix = ''
+      list_prefix = '\t'
+
     if diff['added']:
       self.out.nl()
-      self.printText('added projects : \n')
+      self.printText('%sadded projects :\n' % title_prefix)
       self.out.nl()
       for project in diff['added']:
-        self.printProject('\t%s' % (project.relpath))
+        self.printProject('%s%s' % (list_prefix, self._quote(project.relpath)))
         self.printText(' at revision ')
-        self.printRevision(project.revisionExpr)
+        self.printRevision(self._quote_rev(project.revisionExpr))
         self.out.nl()
 
     if diff['removed']:
       self.out.nl()
-      self.printText('removed projects : \n')
+      self.printText('%sremoved projects :\n' % title_prefix)
       self.out.nl()
       for project in diff['removed']:
-        self.printProject('\t%s' % (project.relpath))
+        self.printProject('%s%s' % (list_prefix, self._quote(project.relpath)))
         self.printText(' at revision ')
-        self.printRevision(project.revisionExpr)
+        self.printRevision(self._quote_rev(project.revisionExpr))
         self.out.nl()
 
     if diff['changed']:
       self.out.nl()
-      self.printText('changed projects : \n')
+      self.printText('%schanged projects :\n' % title_prefix)
       self.out.nl()
       for project, otherProject in diff['changed']:
-        self.printProject('\t%s' % (project.relpath))
+        self.printProject('%s%s' % (list_prefix, self._quote(project.relpath)))
         self.printText(' changed from ')
-        self.printRevision(project.revisionExpr)
+        self.printRevision(self._quote_rev(project.revisionExpr))
         self.printText(' to ')
-        self.printRevision(otherProject.revisionExpr)
+        self.printRevision(self._quote_rev(otherProject.revisionExpr))
         self.out.nl()
         self._printLogs(project, otherProject, raw=False, color=color,
                         pretty_format=pretty_format)
@@ -139,13 +161,13 @@ synced and their revisions won't be found.
 
     if diff['unreachable']:
       self.out.nl()
-      self.printText('projects with unreachable revisions : \n')
+      self.printText('%sprojects with unreachable revisions :\n' % title_prefix)
       self.out.nl()
       for project, otherProject in diff['unreachable']:
-        self.printProject('\t%s ' % (project.relpath))
-        self.printRevision(project.revisionExpr)
+        self.printProject('%s%s ' % (list_prefix, self._quote(project.relpath)))
+        self.printRevision(self._quote_rev(project.revisionExpr))
         self.printText(' or ')
-        self.printRevision(otherProject.revisionExpr)
+        self.printRevision(self._quote_rev(otherProject.revisionExpr))
         self.printText(' not found')
         self.out.nl()
 
@@ -156,34 +178,56 @@ synced and their revisions won't be found.
                                           oneline=(pretty_format is None),
                                           color=color,
                                           pretty_format=pretty_format)
+    if self.output_markdown:
+      sublist_prefix = '    - '
+    else:
+      sublist_prefix = '\t\t'
+    limit_lines = 10
     if logs['removed']:
       removedLogs = logs['removed'].split('\n')
+      count=0
       for log in removedLogs:
+        count += 1
         if log.strip():
           if raw:
             self.printText(' R ' + log)
             self.out.nl()
           else:
-            self.printRemoved('\t\t[-] ')
+            self.printRemoved('%s[-] ' % sublist_prefix)
             self.printText(log)
             self.out.nl()
+          if len(removedLogs) > limit_lines * 3 / 2 \
+             and count >= limit_lines:
+            self.printRemoved('%s... ' % sublist_prefix)
+            self.printText("(TOTAL %d REMOVED LOGS)" % len(removedLogs))
+            self.out.nl()
+            break
 
     if logs['added']:
       addedLogs = logs['added'].split('\n')
+      count=0
       for log in addedLogs:
+        count += 1
         if log.strip():
           if raw:
             self.printText(' A ' + log)
             self.out.nl()
           else:
-            self.printAdded('\t\t[+] ')
+            self.printAdded('%s[+] ' % sublist_prefix)
             self.printText(log)
             self.out.nl()
+          if len(addedLogs) > limit_lines * 3 / 2 \
+             and count >= limit_lines:
+            self.printAdded('%s... ' % sublist_prefix)
+            self.printText("(TOTAL %d ADDED LOGS)" % len(addedLogs))
+            self.out.nl()
+            break
 
   def Execute(self, opt, args):
     if len(args) > 2:
       self.Usage()
 
+    self.output_markdown = opt.markdown
     self.out = _Coloring(self.manifest.globalConfig)
     self.printText = self.out.nofmt_printer('text')
     if opt.color:
@@ -229,4 +273,8 @@ synced and their revisions won't be found.
     if opt.raw:
       self._printRawDiff(diff)
     else:
+      if self.output_markdown and (diff['added'] or diff['removed'] \
+                           or diff['changed'] or diff['unreachable']):
+        self.printText("## repo diffmanifests %s %s" % (manifest1_name, manifest2_name))
+        self.out.nl()
       self._printDiff(diff, color=opt.color, pretty_format=opt.pretty_format)
