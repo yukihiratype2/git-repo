@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os.path
 from color import Coloring
 from command import PagedCommand
 from manifest_xml import XmlManifest
@@ -69,6 +70,9 @@ synced and their revisions won't be found.
     p.add_option('--raw',
                  dest='raw', action='store_true',
                  help='Display raw diff.')
+    p.add_option('--no-local-manifests',
+                 dest='load_local_manifests', action='store_false', default=True,
+                 help='does not load local manifests.')
     p.add_option('--no-color',
                  dest='color', action='store_false', default=True,
                  help='does not display the diff in color.')
@@ -177,7 +181,7 @@ synced and their revisions won't be found.
             self.out.nl()
 
   def Execute(self, opt, args):
-    if not args or len(args) > 2:
+    if len(args) > 2:
       self.Usage()
 
     self.out = _Coloring(self.manifest.globalConfig)
@@ -191,12 +195,24 @@ synced and their revisions won't be found.
       self.printProject = self.printAdded = self.printRemoved = self.printRevision = self.printText
 
     manifest1 = XmlManifest(self.manifest.repodir)
-    manifest1.Override(args[0], load_local_manifests=False)
-    if len(args) == 1:
-      manifest2 = self.manifest
-    else:
+    if not args:
+      # if no args specified, export one manifest for comparison
+      manifest2_name = ':__worktree.xml'
+      if not os.path.exists(self.manifest.altManifestDir):
+        os.mkdir(self.manifest.altManifestDir)
+      path = os.path.join(self.manifest.altManifestDir, manifest2_name[1:])
+      fd = open(path, 'w')
+      self.manifest.Save(fd, peg_rev=True, peg_rev_upstream=False)
+      fd.close()
       manifest2 = XmlManifest(self.manifest.repodir)
-      manifest2.Override(args[1], load_local_manifests=False)
+      manifest2.Override(manifest2_name, load_local_manifests=opt.load_local_manifests)
+    else:
+      manifest1.Override(args[0], load_local_manifests=opt.load_local_manifests)
+      if len(args) == 1:
+        manifest2 = self.manifest
+      else:
+        manifest2 = XmlManifest(self.manifest.repodir)
+        manifest2.Override(args[1], load_local_manifests=opt.load_local_manifests)
 
     diff = manifest1.projectsDiff(manifest2)
     if opt.raw:
