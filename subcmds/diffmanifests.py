@@ -17,7 +17,7 @@
 import os.path
 from color import Coloring
 from command import PagedCommand
-from manifest_xml import XmlManifest
+from manifest_xml import (XmlManifest, MANIFEST_FILE_NAME)
 
 class _Coloring(Coloring):
   def __init__(self, config):
@@ -197,6 +197,7 @@ synced and their revisions won't be found.
     manifest1 = XmlManifest(self.manifest.repodir)
     if not args:
       # if no args specified, export one manifest for comparison
+      manifest1_name = '-'
       manifest2_name = ':__worktree.xml'
       if not os.path.exists(self.manifest.altManifestDir):
         os.mkdir(self.manifest.altManifestDir)
@@ -207,12 +208,22 @@ synced and their revisions won't be found.
       manifest2 = XmlManifest(self.manifest.repodir)
       manifest2.Override(manifest2_name, load_local_manifests=opt.load_local_manifests)
     else:
-      manifest1.Override(args[0], load_local_manifests=opt.load_local_manifests)
+      manifest1_name = args[0]
+      if manifest1_name != '-':
+        manifest1.Override(manifest1_name, load_local_manifests=opt.load_local_manifests)
       if len(args) == 1:
         manifest2 = self.manifest
+        manifest2_name = '-'
       else:
+        manifest2_name = args[1]
         manifest2 = XmlManifest(self.manifest.repodir)
-        manifest2.Override(args[1], load_local_manifests=opt.load_local_manifests)
+        if manifest2_name != '-':
+          manifest2.Override(manifest2_name, load_local_manifests=opt.load_local_manifests)
+
+    if manifest1_name == '-':
+      manifest1_name = MANIFEST_FILE_NAME
+    if manifest2_name == '-':
+      manifest2_name = MANIFEST_FILE_NAME
 
     diff = manifest1.projectsDiff(manifest2)
     if opt.raw:
