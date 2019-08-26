@@ -149,14 +149,28 @@ synced and their revisions won't be found.
       self.printText('%schanged projects :\n' % title_prefix)
       self.out.nl()
       for project, otherProject in diff['changed']:
+        logs = project.getAddedAndRemovedLogs(otherProject,
+                                              oneline=(pretty_format is None),
+                                              color=color,
+                                              pretty_format=pretty_format)
         self.printProject('%s%s' % (list_prefix, self._quote(project.relpath)))
         self.printText(' changed from ')
         self.printRevision(self._quote_rev(project.revisionExpr))
         self.printText(' to ')
         self.printRevision(self._quote_rev(otherProject.revisionExpr))
+        added = removed = 0
+        if logs['added']:
+          added = len([x for x in logs['added'].split('\n') if x.strip()])
+        if logs['removed']:
+          removed = len([x for x in logs['removed'].split('\n') if x.strip()])
+        added=str(added)
+        removed=str(removed)
+        self.printText(' with %s adds, %s removes' % (self._quote(added),
+                                                      self._quote(removed)))
         self.out.nl()
         self._printLogs(project, otherProject, raw=False, color=color,
-                        pretty_format=pretty_format)
+                        pretty_format=pretty_format,
+                        logs=logs)
         self.out.nl()
 
     if diff['unreachable']:
@@ -172,9 +186,9 @@ synced and their revisions won't be found.
         self.out.nl()
 
   def _printLogs(self, project, otherProject, raw=False, color=True,
-                 pretty_format=None):
-
-    logs = project.getAddedAndRemovedLogs(otherProject,
+                 pretty_format=None, logs=None):
+    if not logs:
+      logs = project.getAddedAndRemovedLogs(otherProject,
                                           oneline=(pretty_format is None),
                                           color=color,
                                           pretty_format=pretty_format)
